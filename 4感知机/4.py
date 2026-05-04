@@ -134,8 +134,6 @@ class BGDPerceptron:
             self.w += self.lr * grad_w
             self.b += self.lr * grad_b
             self.losses.append(loss)
-
-            # 提前停止机制：如果遍历完整个数据集发现0个误分类点，说明已经完全收敛
             if count == 0:
                 break
         return self
@@ -234,7 +232,6 @@ class MultiClassPerceptronOVA:
             # 制作二分类标签：如果是当前类别，设为 1；其他所有类别设为 -1
             y_binary = np.where(y == c, 1, -1)
             
-            # 复用你上面写好的基础 Perceptron 
             model = Perceptron(lr=self.lr, max_iter=self.max_iter)
             model.fit(X, y_binary)
             self.classifiers.append(model)
@@ -243,11 +240,9 @@ class MultiClassPerceptronOVA:
     def predict(self, X):
         # 初始化一个矩阵，用来存放 K 个模型的打分结果
         scores = np.zeros((X.shape[0], len(self.classes)))
-        
         for i, model in enumerate(self.classifiers):
             # 记录第 i 个模型对所有样本的打分：w·x + b
             scores[:, i] = np.dot(X, model.w) + model.b
-            
         # 找出每个样本得分最高的分类器索引，映射回对应的真实类别
         best_class_indices = np.argmax(scores, axis=1)
         return self.classes[best_class_indices]
