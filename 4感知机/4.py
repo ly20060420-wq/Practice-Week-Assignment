@@ -4,6 +4,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 plt.rcParams['font.sans-serif'] = ['Microsoft YaHei'] 
 plt.rcParams['axes.unicode_minus'] = False
@@ -14,7 +15,7 @@ X, y = make_classification(n_samples=100,
                            n_redundant=0,
                            n_clusters_per_class=1, 
                            class_sep=0.5,
-                           flip_y=0.1,
+                           flip_y=0,
                            random_state=42)
 #n_redundant冗余特征为0，n_clusters_per_class每个类别对应的簇数量为1：数据分布较简单，random_state随机种子，确保每次运行生成的数据完全一致便于复现
 y = np.where(y == 0, -1, 1) # 标签映射为{-1, 1}，np.where(condition,x,y)满足条件替换为x，否则y
@@ -77,13 +78,29 @@ class DualPerceptron:
                     self.alpha[i] += self.lr # αi+=lr
                     self.b += self.lr * y[i]# b+=lr*yi
                     count+=1
-                self.counts.append(count)
+            self.counts.append(count)
         return self
     #由于对偶形式只学习出了α，预测时需要借助训练数据还原权重 w
     def predict(self, X_train, y_train, X_test):
         w = np.sum((self.alpha * y_train)[:, np.newaxis] * X_train, axis=0)
         return np.where(np.dot(X_test, w) + self.b >= 0, 1, -1)
     
+
+print("\n--- 原始形式与对偶形式效率对比 ---")
+# 测试原始形式
+start_time = time.time()
+p_primal = Perceptron(lr=0.01, max_iter=1000)
+p_primal.fit(X_train, y_train)
+primal_time = time.time() - start_time
+print(f"原始形式 (SGD) 训练耗时: {primal_time:.5f} 秒，迭代轮数: {len(p_primal.losses)}")
+
+# 测试对偶形式
+start_time = time.time()
+p_dual = DualPerceptron(lr=0.01, max_iter=1000)
+p_dual.fit(X_train, y_train)
+dual_time = time.time() - start_time
+print(f"对偶形式 (Dual) 训练耗时: {dual_time:.5f} 秒，迭代轮数: {len(p_dual.counts)}")
+
 
 # 批量梯度下降 (BGD)
 # 特点：每次参数更新都会使用完整的训练集计算梯度
@@ -167,7 +184,7 @@ class MiniBatchPerceptron:
         return self
 
 
-# 扩展任务 1：自适应学习率感知机
+# 扩展任务1：自适应学习率感知机
 class AdaptivePerceptron:
     def __init__(self, lr0=0.1, decay_rate=0.01, max_iter=1000):
         self.lr0 = lr0                # 初始学习率
@@ -199,7 +216,7 @@ class AdaptivePerceptron:
         return self
 
 
-# 扩展任务 2：多分类感知机 (One-vs-All 策略)
+# 扩展任务2：多分类感知机 (One-vs-All 策略)
 class MultiClassPerceptronOVA:
     def __init__(self, lr=0.01, max_iter=1000):
         self.lr = lr
@@ -257,6 +274,9 @@ plt.show()
 #实例化并训练模型
 perceptron = Perceptron(lr=0.01,max_iter=1000)
 perceptron.fit(X_train,y_train)
+# 验证在训练集上是否完全收敛
+assert np.all(perceptron.predict(X_train) == y_train), "模型在训练集上未完全收敛！"
+print("基础感知机断言测试通过！训练集准确率 100%")
 
 #损失曲线
 plt.figure(figsize=(12,6))
@@ -293,3 +313,107 @@ def plot_decision_boundary(model, X, y):
     plt.title('Decision Boundary')
     plt.show()
 plot_decision_boundary(perceptron, X_train, y_train)
+
+
+print("\nSGD、BGD 与 Mini-batch GD 运行结果对比")
+# 1. 随机梯度下降 (SGD)
+start_time = time.time()
+sgd_model = Perceptron(lr=0.01, max_iter=1000)
+sgd_model.fit(X_train, y_train)
+print(f"1. SGD 训练耗时: {time.time() - start_time:.5f} 秒，收敛需要 Epochs: {len(sgd_model.losses)}")
+
+# 2. 批量梯度下降 (BGD)
+start_time = time.time()
+bgd_model = BGDPerceptron(lr=0.01, max_iter=1000)
+bgd_model.fit(X_train, y_train)
+print(f"2. BGD 训练耗时: {time.time() - start_time:.5f} 秒，收敛需要 Epochs: {len(bgd_model.losses)}")
+
+# 3. 小批量梯度下降 (Mini-batch GD)
+start_time = time.time()
+mbgd_model = MiniBatchPerceptron(lr=0.01, batch_size=16, max_iter=1000)
+mbgd_model.fit(X_train, y_train)
+print(f"3. Mini-batch 训练耗时: {time.time() - start_time:.5f} 秒，收敛需要 Epochs: {len(mbgd_model.losses)}")
+
+# 绘制三种梯度下降方式的损失曲线对比图
+plt.figure(figsize=(10, 6))
+# 取前50个 Epoch 放大看细节
+plt.plot(range(len(sgd_model.losses)), sgd_model.losses, label='SGD (每次1个样本)', alpha=0.8, marker='o', markersize=3)
+plt.plot(range(len(bgd_model.losses)), bgd_model.losses, label='BGD (每次全量样本)', alpha=0.8, marker='s', markersize=3)
+plt.plot(range(len(mbgd_model.losses)), mbgd_model.losses, label='Mini-batch GD (batch=16)', alpha=0.8, marker='^', markersize=3)
+
+plt.xlabel('Epoch (迭代轮数)')
+plt.ylabel('Empirical Risk (总损失)')
+plt.title('SGD vs BGD vs Mini-batch GD 损失下降对比')
+plt.legend()
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.show()
+
+
+print("\n扩展任务1：自适应学习率感知机测试")
+# 实例化自适应学习率模型
+adaptive_model = AdaptivePerceptron(lr0=0.1, decay_rate=0.01, max_iter=1000)
+adaptive_model.fit(X_train, y_train)
+
+# 实例化一个固定学习率模型作为对比 
+fixed_model = Perceptron(lr=0.1, max_iter=1000)
+fixed_model.fit(X_train, y_train)
+
+# 绘制对比曲线
+plt.figure(figsize=(8, 5))
+plt.plot(range(len(adaptive_model.losses)), adaptive_model.losses, 
+         label='自适应学习率 (Adaptive LR)', marker='o', markersize=4)
+plt.plot(range(len(fixed_model.losses)), fixed_model.losses, 
+         label='固定学习率 (Fixed LR=0.1)', marker='x', markersize=4, linestyle='--')
+
+plt.xlabel('Epoch (迭代轮数)')
+plt.ylabel('Empirical Risk (经验损失)')
+plt.title('自适应学习率 vs 固定学习率 损失下降对比')
+plt.legend()
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.show()
+
+print(f"自适应学习率收敛所需轮数: {len(adaptive_model.losses)}")
+print(f"固定学习率收敛所需轮数: {len(fixed_model.losses)}")
+
+
+print("\n扩展任务2：多分类感知机 (OVA) 测试")
+# 生成一个3分类的数据集
+X_multi, y_multi = make_classification(n_samples=150, n_features=2, n_redundant=0, 
+                                       n_informative=2, n_clusters_per_class=1, 
+                                       n_classes=3, class_sep=1.5, random_state=42)
+
+# 数据标准化
+X_multi_scaled = scaler.fit_transform(X_multi)
+X_train_m, X_test_m, y_train_m, y_test_m = train_test_split(
+    X_multi_scaled, y_multi, test_size=0.2, random_state=42)
+
+# 实例化并训练 OVA 多分类模型
+ova_model = MultiClassPerceptronOVA(lr=0.01, max_iter=1000)
+ova_model.fit(X_train_m, y_train_m)
+
+# 预测并计算准确率
+y_pred_m = ova_model.predict(X_test_m)
+accuracy = np.mean(y_pred_m == y_test_m)
+print(f"多分类 OVA 模型在测试集上的准确率: {accuracy * 100:.2f}%")
+
+# 针对多分类重新写一个画图函数
+def plot_multiclass_decision_boundary(model, X, y):
+    x1_min, x1_max = X[:, 0].min() - 1, X[:, 0].max() + 1
+    x2_min, x2_max = X[:, 1].min() - 1, X[:, 1].max() + 1
+    xx1, xx2 = np.meshgrid(np.linspace(x1_min, x1_max, 200), 
+                           np.linspace(x2_min, x2_max, 200))
+    
+    Z = model.predict(np.c_[xx1.ravel(), xx2.ravel()])
+    Z = Z.reshape(xx1.shape)
+    
+    plt.figure(figsize=(8, 6))
+    # 使用 Paired 颜色映射来区分3个类别
+    plt.contourf(xx1, xx2, Z, alpha=0.3, cmap=plt.cm.Paired)
+    plt.scatter(X[:, 0], X[:, 1], c=y, edgecolors='k', cmap=plt.cm.Paired)
+    plt.xlabel('Feature 1')
+    plt.ylabel('Feature 2')
+    plt.title(f'多分类决策边界 (One-vs-All)\n准确率: {accuracy*100:.1f}%')
+    plt.show()
+
+# 绘制多分类结果
+plot_multiclass_decision_boundary(ova_model, X_train_m, y_train_m)
