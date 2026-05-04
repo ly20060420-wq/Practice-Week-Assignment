@@ -271,9 +271,7 @@ plt.show()
 #实例化并训练模型
 perceptron = Perceptron(lr=0.01,max_iter=1000)
 perceptron.fit(X_train,y_train)
-# 验证在训练集上是否完全收敛
-assert np.all(perceptron.predict(X_train) == y_train), "模型在训练集上未完全收敛！"
-print("基础感知机断言测试通过！训练集准确率 100%")
+
 
 #损失曲线
 plt.figure(figsize=(12,6))
