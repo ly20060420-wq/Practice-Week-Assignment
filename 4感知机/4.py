@@ -70,6 +70,8 @@ class DualPerceptron:
         self.gram = X.dot(X.T) # Gram 矩阵
         #Gram[i]表示[xi*xj]一维矩阵，(j=1~N),Gram[i][j]=xi*xj数值
         self.counts=[]
+        self.X_fit = X
+        self.y_fit = y
         for _ in range(self.max_iter): 
             count=0
             for i in range(n_samples): 
@@ -83,8 +85,8 @@ class DualPerceptron:
                 break
         return self
     #由于对偶形式只学习出了α，预测时需要借助训练数据还原权重 w
-    def predict(self, X_train, y_train, X_test):
-        w = np.sum((self.alpha * y_train)[:, np.newaxis] * X_train, axis=0)
+    def predict(self, X_test):
+        w = np.sum((self.alpha * self.y_fit)[:, np.newaxis] * self.X_fit, axis=0)
         return np.where(np.dot(X_test, w) + self.b >= 0, 1, -1)
     
 
@@ -143,15 +145,17 @@ class BGDPerceptron:
 # 特点：每次参数更新使用数据集中的一小批（batch）样本计算梯度。
 # 优点：结合了 SGD 的计算高效性和 BGD 的收敛稳定性，是现代深度学习最常用的策略。
 class MiniBatchPerceptron:
-    def __init__(self, lr=0.01, batch_size=16, max_iter=1000):
-        self.lr = lr
+    def __init__(self, lr=0.01, batch_size=16, max_iter=1000, random_state=42):
+        self.lr = lr    
         self.batch_size = batch_size # 批大小：每次计算梯度使用的样本数量
         self.max_iter = max_iter
+        self.random_state = random_state
     def fit(self, X, y):
         self.w = np.zeros(X.shape[1])
         self.b = 0
         self.losses = []
         n_samples = X.shape[0]
+        np.random.seed(self.random_state)
         
         for _ in range(self.max_iter):
             loss = 0.0
@@ -315,19 +319,19 @@ print("\nSGD、BGD 与 Mini-batch GD 运行结果对比")
 start_time = time.time()
 sgd_model = Perceptron(lr=0.01, max_iter=1000)
 sgd_model.fit(X_train, y_train)
-print(f"1. SGD 训练耗时: {time.time() - start_time:.5f} 秒，收敛需要 Epochs: {len(sgd_model.losses)}")
+print(f"1. SGD 训练耗时: {time.time() - start_time:.5f} 秒，收敛需要迭代轮数: {len(sgd_model.losses)}")
 
 # 2. 批量梯度下降 (BGD)
 start_time = time.time()
 bgd_model = BGDPerceptron(lr=0.01, max_iter=1000)
 bgd_model.fit(X_train, y_train)
-print(f"2. BGD 训练耗时: {time.time() - start_time:.5f} 秒，收敛需要 Epochs: {len(bgd_model.losses)}")
+print(f"2. BGD 训练耗时: {time.time() - start_time:.5f} 秒，收敛需要迭代轮数: {len(bgd_model.losses)}")
 
 # 3. 小批量梯度下降 (Mini-batch GD)
 start_time = time.time()
 mbgd_model = MiniBatchPerceptron(lr=0.01, batch_size=16, max_iter=1000)
 mbgd_model.fit(X_train, y_train)
-print(f"3. Mini-batch 训练耗时: {time.time() - start_time:.5f} 秒，收敛需要 Epochs: {len(mbgd_model.losses)}")
+print(f"3. Mini-batch 训练耗时: {time.time() - start_time:.5f} 秒，收敛需要迭代轮数: {len(mbgd_model.losses)}")
 
 # 绘制三种梯度下降方式的损失曲线对比图
 plt.figure(figsize=(10, 6))
