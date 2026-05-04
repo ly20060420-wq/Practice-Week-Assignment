@@ -79,6 +79,8 @@ class DualPerceptron:
                     self.b += self.lr * y[i]# b+=lr*yi
                     count+=1
             self.counts.append(count)
+            if count == 0:
+                break
         return self
     #由于对偶形式只学习出了α，预测时需要借助训练数据还原权重 w
     def predict(self, X_train, y_train, X_test):
@@ -417,3 +419,23 @@ def plot_multiclass_decision_boundary(model, X, y):
 
 # 绘制多分类结果
 plot_multiclass_decision_boundary(ova_model, X_train_m, y_train_m)
+
+
+print("\n噪声数据测试 (flip_y=0.3)")
+X_noise, y_noise = make_classification(n_samples=100, n_features=2, n_redundant=0,
+                                       n_clusters_per_class=1, class_sep=0.5, 
+                                       flip_y=0.3, random_state=42)
+y_noise = np.where(y_noise == 0, -1, 1)
+X_noise_scaled = scaler.fit_transform(X_noise)
+
+p_noise = Perceptron(lr=0.01, max_iter=200) # 减少max_iter防止死循环太久
+p_noise.fit(X_noise_scaled, y_noise)
+
+plt.figure(figsize=(6, 4))
+plt.plot(range(len(p_noise.losses)), p_noise.losses, color='red')
+plt.xlabel('Epoch')
+plt.ylabel('Empirical Risk')
+plt.title('噪声数据下的损失曲线 (震荡无法收敛)')
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.show()
+print("审查结论：面对线性不可分数据，感知机无法找到完美超平面，损失函数持续震荡。")
